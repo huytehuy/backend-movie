@@ -12,6 +12,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Room represents a watch party room - Defined in models.go
+
 var (
 	rooms      = make(map[string]*Room)
 	roomsMutex sync.RWMutex
@@ -29,6 +31,7 @@ func (room *Room) Run() {
 	for {
 		select {
 		case client := <-room.Register:
+			room.LastActivity = time.Now() // Update LastActivity
 			room.Clients[client] = true
 			log.Printf("Client %s joined room %s", client.Username, room.ID)
 
@@ -39,6 +42,7 @@ func (room *Room) Run() {
 			room.broadcastUserList()
 
 		case client := <-room.Unregister:
+			room.LastActivity = time.Now() // Update LastActivity
 			if _, ok := room.Clients[client]; ok {
 				delete(room.Clients, client)
 				close(client.Send)
@@ -49,6 +53,7 @@ func (room *Room) Run() {
 			}
 
 		case message := <-room.Broadcast:
+			room.LastActivity = time.Now() // Update LastActivity
 			for client := range room.Clients {
 				select {
 				case client.Send <- message:
@@ -107,20 +112,22 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	userID := uuid.New().String()[:8]
 
 	room := &Room{
-		ID:      roomID,
-		MovieID: req.MovieID,
-		HostID:  userID,
-		Name:    req.RoomName,
-		Clients: make(map[*Client]bool),
+		ID:             roomID,
+		MovieID:        req.MovieID,
+		CustomVideoURL: req.CustomVideoURL, // Store custom video URL
+		HostID:         userID,
+		Name:           req.RoomName,
+		Clients:        make(map[*Client]bool),
 		VideoState: &VideoState{
 			IsPlaying:   false,
 			CurrentTime: 0,
 			UpdatedAt:   time.Now(),
 		},
-		CreatedAt:  time.Now(),
-		Broadcast:  make(chan []byte, 256),
-		Register:   make(chan *Client),
-		Unregister: make(chan *Client),
+		CreatedAt:    time.Now(),
+		LastActivity: time.Now(),
+		Broadcast:    make(chan []byte, 256),
+		Register:     make(chan *Client),
+		Unregister:   make(chan *Client),
 	}
 
 	roomsMutex.Lock()
@@ -130,17 +137,18 @@ func CreateRoom(w http.ResponseWriter, r *http.Request) {
 	// Start room goroutine
 	go room.Run()
 
-	log.Printf("Room created: %s for movie %s by %s", roomID, req.MovieID, req.Username)
+	log.Printf("Room created: %s for movie %s (CustomURL: %s) by %s", roomID, req.MovieID, req.CustomVideoURL, req.Username)
 
 	resp := CreateRoomResponse{
 		Room: &RoomInfo{
-			ID:         room.ID,
-			MovieID:    room.MovieID,
-			Name:       room.Name,
-			HostID:     room.HostID,
-			UserCount:  0,
-			VideoState: room.VideoState,
-			CreatedAt:  room.CreatedAt,
+			ID:             room.ID,
+			MovieID:        room.MovieID,
+			CustomVideoURL: room.CustomVideoURL,
+			Name:           room.Name,
+			HostID:         room.HostID,
+			UserCount:      0,
+			VideoState:     room.VideoState,
+			CreatedAt:      room.CreatedAt,
 		},
 		UserID: userID,
 	}
@@ -164,13 +172,14 @@ func GetRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	roomInfo := RoomInfo{
-		ID:         room.ID,
-		MovieID:    room.MovieID,
-		Name:       room.Name,
-		HostID:     room.HostID,
-		UserCount:  len(room.Clients),
-		VideoState: room.VideoState,
-		CreatedAt:  room.CreatedAt,
+		ID:             room.ID,
+		MovieID:        room.MovieID,
+		CustomVideoURL: room.CustomVideoURL,
+		Name:           room.Name,
+		HostID:         room.HostID,
+		UserCount:      len(room.Clients),
+		VideoState:     room.VideoState,
+		CreatedAt:      room.CreatedAt,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -185,13 +194,14 @@ func GetActiveRooms(w http.ResponseWriter, r *http.Request) {
 	activeRooms := make([]RoomInfo, 0, len(rooms))
 	for _, room := range rooms {
 		activeRooms = append(activeRooms, RoomInfo{
-			ID:         room.ID,
-			MovieID:    room.MovieID,
-			Name:       room.Name,
-			HostID:     room.HostID,
-			UserCount:  len(room.Clients),
-			VideoState: room.VideoState,
-			CreatedAt:  room.CreatedAt,
+			ID:             room.ID,
+			MovieID:        room.MovieID,
+			CustomVideoURL: room.CustomVideoURL,
+			Name:           room.Name,
+			HostID:         room.HostID,
+			UserCount:      len(room.Clients),
+			VideoState:     room.VideoState,
+			CreatedAt:      room.CreatedAt,
 		})
 	}
 
@@ -391,4 +401,31 @@ func mustMarshal(v interface{}) []byte {
 		return []byte("{}")
 	}
 	return b
+}
+
+// StartRoomCleanup starts a background goroutine to clean up empty rooms
+func StartRoomCleanup() {
+	ticker := time.NewTicker(1 * time.Minute)
+	go func() {
+		for range ticker.C {
+			roomsMutex.Lock()
+			count := 0
+			// Iterate over rooms and check for inactivity
+			for id, room := range rooms {
+				// If room is empty (no clients)
+				if len(room.Clients) == 0 {
+					// And it has been inactive for more than 30 minutes
+					if time.Since(room.LastActivity) > 30*time.Minute {
+						delete(rooms, id)
+						log.Printf("Cleaned up empty room: %s", id)
+						count++
+					}
+				}
+			}
+			roomsMutex.Unlock()
+			if count > 0 {
+				log.Printf("Total rooms cleaned up: %d", count)
+			}
+		}
+	}()
 }

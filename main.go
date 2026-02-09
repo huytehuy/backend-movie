@@ -58,6 +58,9 @@ func main() {
 		port = "8080"
 	}
 
+	// Start room cleanup routine
+	StartRoomCleanup()
+
 	log.Printf("Server starting on port %s", port)
 	log.Printf("Video streaming: http://localhost:%s/api/videos/", port)
 	log.Printf("WebSocket: ws://localhost:%s/api/rooms/{roomId}/ws", port)

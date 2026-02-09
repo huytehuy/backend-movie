@@ -18,16 +18,18 @@ type Movie struct {
 
 // Room represents a watch party room
 type Room struct {
-	ID         string           `json:"id"`
-	MovieID    string           `json:"movieId"`
-	HostID     string           `json:"hostId"`
-	Name       string           `json:"name"`
-	Clients    map[*Client]bool `json:"-"`
-	VideoState *VideoState      `json:"videoState"`
-	CreatedAt  time.Time        `json:"createdAt"`
-	Broadcast  chan []byte      `json:"-"`
-	Register   chan *Client     `json:"-"`
-	Unregister chan *Client     `json:"-"`
+	ID             string           `json:"id"`
+	MovieID        string           `json:"movieId"`
+	CustomVideoURL string           `json:"customVideoUrl,omitempty"` // Added for custom m3u8 links
+	HostID         string           `json:"hostId"`
+	Name           string           `json:"name"`
+	Clients        map[*Client]bool `json:"-"`
+	VideoState     *VideoState      `json:"videoState"`
+	CreatedAt      time.Time        `json:"createdAt"`
+	LastActivity   time.Time        `json:"-"`
+	Broadcast      chan []byte      `json:"-"`
+	Register       chan *Client     `json:"-"`
+	Unregister     chan *Client     `json:"-"`
 }
 
 // Client represents a connected user in a room
@@ -92,13 +94,14 @@ type ChatData struct {
 
 // RoomInfo for room details
 type RoomInfo struct {
-	ID         string      `json:"id"`
-	MovieID    string      `json:"movieId"`
-	Name       string      `json:"name"`
-	HostID     string      `json:"hostId"`
-	UserCount  int         `json:"userCount"`
-	VideoState *VideoState `json:"videoState"`
-	CreatedAt  time.Time   `json:"createdAt"`
+	ID             string      `json:"id"`
+	MovieID        string      `json:"movieId"`
+	CustomVideoURL string      `json:"customVideoUrl,omitempty"`
+	Name           string      `json:"name"`
+	HostID         string      `json:"hostId"`
+	UserCount      int         `json:"userCount"`
+	VideoState     *VideoState `json:"videoState"`
+	CreatedAt      time.Time   `json:"createdAt"`
 }
 
 // UserInfo for user details
@@ -109,9 +112,10 @@ type UserInfo struct {
 
 // CreateRoomRequest for creating a new room
 type CreateRoomRequest struct {
-	MovieID  string `json:"movieId"`
-	RoomName string `json:"roomName"`
-	Username string `json:"username"`
+	MovieID        string `json:"movieId"`
+	CustomVideoURL string `json:"customVideoUrl,omitempty"`
+	RoomName       string `json:"roomName"`
+	Username       string `json:"username"`
 }
 
 // CreateRoomResponse for room creation response
