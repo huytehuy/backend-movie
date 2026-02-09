@@ -177,6 +177,28 @@ func GetRoom(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(roomInfo)
 }
 
+// GetActiveRooms returns a list of all active rooms
+func GetActiveRooms(w http.ResponseWriter, r *http.Request) {
+	roomsMutex.RLock()
+	defer roomsMutex.RUnlock()
+
+	activeRooms := make([]RoomInfo, 0, len(rooms))
+	for _, room := range rooms {
+		activeRooms = append(activeRooms, RoomInfo{
+			ID:         room.ID,
+			MovieID:    room.MovieID,
+			Name:       room.Name,
+			HostID:     room.HostID,
+			UserCount:  len(room.Clients),
+			VideoState: room.VideoState,
+			CreatedAt:  room.CreatedAt,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(activeRooms)
+}
+
 // HandleWebSocket handles WebSocket connections for watch party
 func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)

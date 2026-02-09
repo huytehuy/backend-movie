@@ -31,6 +31,7 @@ func main() {
 
 	// Watch party routes
 	api.HandleFunc("/rooms", CreateRoom).Methods("POST")
+	api.HandleFunc("/rooms", GetActiveRooms).Methods("GET")
 	api.HandleFunc("/rooms/{id}", GetRoom).Methods("GET")
 	api.HandleFunc("/rooms/{id}/ws", HandleWebSocket)
 
@@ -41,9 +42,9 @@ func main() {
 	// Uncomment this when you build your React app
 	// router.PathPrefix("/").Handler(http.FileServer(http.Dir("./movie/dist")))
 
-	// CORS middleware for development
+	// CORS middleware
 	c := cors.New(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:5173", "http://localhost:3000"},
+		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: true,
